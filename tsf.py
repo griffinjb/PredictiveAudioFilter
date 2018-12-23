@@ -24,13 +24,17 @@ from keras.layers import Dense, Dropout, Activation
 from keras.optimizers import SGD
 
 
-# load audio to nparray
+# load audio to nparray, return 0,1 scaled nparray
 def loadWav(path):
 	rate, data = wavfile.read(path)
 	data = data[:,0]
-	data = data + max(data)
-	data = data / max(data)
-	return(data)
+	data = np.interp(data, (data.min(), data.max()),(0,1))
+	return((data,rate))
+
+def writeWav(data,rate,path):
+	scale = 1 - .1
+	data = np.interp(data,(data.min(), data.max()),(-scale,scale))
+	wavfile.write(path,rate,data)
 
 
 def rampGen():
@@ -59,7 +63,7 @@ def clippingParser(data):
 	ff = 0
 
 	for i in range(0,data.shape[0]):
-		if data[i] == 1:
+		if data[i] == 1 or data[i] == 0:
 			if ff:
 				sp = i
 				out.append(data[st:sp])
@@ -87,13 +91,15 @@ def tspLabelFormat(data,bufferSize,predictionSize):
 
 if __name__ == "__main__":
 	
-	# Parameters 
+	# Parameters
 	audioPath = getcwd()+"/liteSpdRKT.wav"
-	bufferSize = 1
+	bufferSize = 2
 	predictionSize = 1
 
 	# yo = rampGen()
-	wv = loadWav(audioPath)
+	wv,rate = loadWav(audioPath)
+
+	# wv = wv[0:1000000]
 
 	yos = clippingParser(wv)
 
@@ -101,20 +107,17 @@ if __name__ == "__main__":
 
 	f = 1
 
+	# iterate clips and append labels
 	for yo in yos:
 		if f:
 			dataLabel = tspLabelFormat(yo,bufferSize,predictionSize)
 			f = 0
 		else:
 			temp = tspLabelFormat(yo,bufferSize,predictionSize)
-			# print(dataLabel[0].shape)
-			# print(.shape)
-			print(dataLabel)
-			print(temp[0][0])
-			np.append(dataLabel[0],temp[0][0].T,axis=0)
-			np.append(dataLabel[1],temp[0][1].T,axis=0)
-
-
+			for dat in temp[0]:
+				dataLabel[0].append(dat)
+			for dat in temp[1]:
+				dataLabel[1].append(dat)
 
 	# Zip_dataLabel = zip(dataLabel[0],dataLabel[1])
 
@@ -134,20 +137,23 @@ if __name__ == "__main__":
 	model.compile(loss='mean_squared_error',
 	              optimizer=sgd)
 
-	model.fit(X_train, y_train, epochs=100, batch_size=5000)
+	model.fit(X_train, y_train, epochs=1, batch_size=500)
 
+
+	# for i in range(100):
+		
 	preds = model.predict(X_train)
-	# preds[preds>=0.5] = 1
-	# preds[preds<0.5] = 0
-	# score = compare preds and y_test
 
-	preds *= drcmax
-	print(preds)
+	writeWav(preds,rate,'testOut.wav')
+
+
+	# preds *= drcmax
+	# print(preds)
 
 	# plt.plot(idx,idx,'ro')
-	plt.plot(preds)
+	# plt.plot(preds)
 	# plt.axis([0,100,0,100])
-	plt.show()
+	# plt.show()
 
 
 
