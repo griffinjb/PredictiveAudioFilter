@@ -1,4 +1,7 @@
 # Time Series Forecasting (TSP2.0)
+# Josh Griffin
+# 12/21/2018
+
 
 # so you make a label. that label is like, the N+1 sample, 
 # the feature is the previous N-d:N datapoints
@@ -88,6 +91,39 @@ def tspLabelFormat(data,bufferSize,predictionSize):
 
 	return([sets,labels])
 
+# predictive synthesis - signal [0->1]
+def generatePredictions(model,signal,bufferSize,predictionSize):
+	# damn so this will be kinda hard
+
+	# Input is clipped audio
+
+	# start with set of at least buffer size
+
+	# predict next step
+
+	# for each sample, insert sample from either unclipped audio
+	# or from prediction.
+
+	predBuffer = signal[0:bufferSize]
+
+	pred = model.predict(predBuffer)
+
+	for idx,sample in enumerate(signal[bufferSize:-predictionSize]):
+
+		# Append prediction or sample
+		predBuffer[:-1] = predBuffer[1:]
+
+		# replace corrupted signal with predicted signal
+		if sample == 1 or sample == 0:
+			signal[bufferSize:-predictionSize][idx] = pred
+
+		predBuffer[-1] = sample
+
+		# Make prediction
+		pred = model.predict(predBuffer)
+		predBuffer
+
+
 
 if __name__ == "__main__":
 	
@@ -101,14 +137,14 @@ if __name__ == "__main__":
 
 	# wv = wv[0:1000000]
 
-	yos = clippingParser(wv)
+	parsedClip = clippingParser(wv)
 
 	dataLabel = []
 
 	f = 1
 
 	# iterate clips and append labels
-	for yo in yos:
+	for yo in parsedClips:
 		if f:
 			dataLabel = tspLabelFormat(yo,bufferSize,predictionSize)
 			f = 0
@@ -137,12 +173,15 @@ if __name__ == "__main__":
 	model.compile(loss='mean_squared_error',
 	              optimizer=sgd)
 
+	# train model
 	model.fit(X_train, y_train, epochs=1, batch_size=500)
 
+	# save model to memory
 
 	# for i in range(100):
-		
-	preds = model.predict(X_train)
+	# preds = model.predict(X_train)
+	generatePredictions(X_train,model)
+
 
 	writeWav(preds,rate,'testOut.wav')
 
