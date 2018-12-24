@@ -190,6 +190,7 @@ if __name__ == "__main__":
 	print("Audio Loaded")
 
 	# wv = wv[1100000:1200000]
+	wv = wv[:5000000]
 
 	print("Parsing into non-clipped data")
 	parsedClips = clippingParser(wv)
@@ -227,7 +228,7 @@ if __name__ == "__main__":
 	
 	# for i in range(100):
 	# preds = model.predict(X_train)
-	pwv = generatePredictions(model,wv,bufferSize,predictionSize)
+	pwv = generatePredictions(model,wv,bufferSize,predictionSize,fullReplacement)
 
 	writeWav(pwv,rate,'testOut.wav')
 
