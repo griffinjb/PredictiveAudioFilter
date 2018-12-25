@@ -94,7 +94,7 @@ def tspLabelFormat(data,bufferSize,predictionSize):
 	return([sets,labels])
 
 # predictive synthesis - signal [0->1]
-def generatePredictions(model,signal,bufferSize,predictionSize,fullReplacement):
+def generatePredictions(model,signal,bufferSize,predictionSize,fullReplacement,duty,mix):
 	# damn so this will be kinda hard
 
 	# Input is clipped audio
@@ -124,8 +124,11 @@ def generatePredictions(model,signal,bufferSize,predictionSize,fullReplacement):
 		predBuffer[0][0][:-1] = predBuffer[0][0][1:]
 	
 		# replace corrupted signal with predicted signal
-		if sample == 1 or sample == 0 or fullReplacement:
-			signal[bufferSize:-predictionSize][idx] = pred
+
+		if sample == 1 or sample == 0 or fullReplacement or idx%duty != 0:
+			mixSignal = mix * pred + (1-mix)*sample
+			signal[bufferSize:-predictionSize][idx] = mixSignal
+			sample = mixSignal
 			clipCtr += 1
 
 		predBuffer[0][0][-1] = sample
@@ -164,6 +167,21 @@ def trainModel(X_train,y_train):
 
 	return(model)
 
+def downSample(wv,percent,length):
+	ctr = 0
+	ff = 0
+	for idx,sample in enumerate(wv):
+		if ff:
+			wv[idx] = 1
+			ctr+=1
+			if ctr == (1-percent)*length/percent:
+				ff = 0
+		else:
+			ctr+=1
+			if ctr == length:
+				ff = 1
+	return(wv)
+
 def loadModel(jsonfn,h5fn):
 	# load json and create model
 	json_file = open(jsonfn, 'r')
@@ -178,20 +196,34 @@ def loadModel(jsonfn,h5fn):
 if __name__ == "__main__":
 	
 	# Parameters
-	audioPath = getcwd()+"/liteSpdRKT.wav"
-	bufferSize = 200
+	audioPathWrite = getcwd()+"/liteSpdRKT.wav"
+	# audioPath = getcwd()+"/un1.wav"
+	# audioPath = getcwd()+"/keyRaw.wav"
+	audioPath = getcwd()+"/grounded.wav"
+	# length of prediction info
+	bufferSize = 100
+	# length of prediction label
 	predictionSize = 1
+	# Train new model
 	# newModel = False
+	# equivalent to duty == 1
 	newModel = True
 	fullReplacement = True
+	# min, 1 : max inf : effective sample rate
+	duty = 1
+	# prediction mix vs signal mix
+	mix = .8
+
 
 	# yo = rampGen()
 	wv,rate = loadWav(audioPath)
+	writeWV, writeRate = loadWav(audioPathWrite)
 	print("Audio Loaded")
 
 	# wv = wv[1100000:1200000]
-	wv = wv[:5000000]
-
+	# wv = wv[:100000]
+	# wv = wv[50000:80000]
+	wv = wv[:]
 	print("Parsing into non-clipped data")
 	parsedClips = clippingParser(wv)
 	print("Parsing Complete")
@@ -216,21 +248,21 @@ if __name__ == "__main__":
 
 	# Zip_dataLabel = zip(dataLabel[0],dataLabel[1])
 
-	X_train = np.asarray(dataLabel[0])
-	y_train = np.asarray(dataLabel[1])
 
 	# generate new model
 	if newModel:
+		X_train = np.asarray(dataLabel[0])
+		y_train = np.asarray(dataLabel[1])
 		model = trainModel(X_train,y_train)
 		saveModel(model)
 	else:
-		model = loadModel("cmodel.json","cweights.h5")
+		model = loadModel("cmodel3.json","cweights3.h5")
 	
 	# for i in range(100):
 	# preds = model.predict(X_train)
-	pwv = generatePredictions(model,wv,bufferSize,predictionSize,fullReplacement)
+	pwv = generatePredictions(model,wv,bufferSize,predictionSize,fullReplacement,duty,mix)
 
-	writeWav(pwv,rate,'testOut.wav')
+	writeWav(writeWV,writeRate,'testOut'+strftime("%Y%m%d-%H%M%S")+'.wav')
 
 
 	# preds *= drcmax
