@@ -19,6 +19,8 @@ from os import getcwd, listdir
 
 import matplotlib.pyplot as plt
 
+from math import sin, pi
+
 from scipy.io import wavfile
 
 from time import strftime
@@ -94,7 +96,7 @@ def tspLabelFormat(data,bufferSize,predictionSize):
 	return([sets,labels])
 
 # predictive synthesis - signal [0->1]
-def generatePredictions(model,signal,bufferSize,predictionSize,fullReplacement,duty,mix):
+def generatePredictions(model,signal,bufferSize,predictionSize,fullReplacement,duty,mix,fxEN):
 	# damn so this will be kinda hard
 
 	# Input is clipped audio
@@ -125,6 +127,10 @@ def generatePredictions(model,signal,bufferSize,predictionSize,fullReplacement,d
 	
 		# replace corrupted signal with predicted signal
 
+		# modify mix
+		if fxEN:
+			mix = (sin(idx/44100*2*pi)+1)/2
+
 		if sample == 1 or sample == 0 or fullReplacement or idx%duty != 0:
 			mixSignal = mix * pred + (1-mix)*sample
 			signal[bufferSize:-predictionSize][idx] = mixSignal
@@ -150,6 +156,23 @@ def saveModel(model):
 	print("Saved model to disk")
 
 def trainModel(X_train,y_train):
+	# now classify boyo
+	model = Sequential()
+	model.add(Dense(10, activation='relu', input_dim=X_train.shape[1]))
+	# model.add(Dropout(0.1))
+	model.add(Dense(10, activation='relu'))
+	# model.add(Dropout(0.1))
+	model.add(Dense(y_train.shape[1], activation='sigmoid'))
+
+	sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
+	model.compile(loss='mean_squared_error',
+	              optimizer=sgd)
+	# train model
+	model.fit(X_train, y_train, epochs=10, batch_size=50)
+
+	return(model)
+
+def trainModel1(X_train,y_train):
 	# now classify boyo
 	# layers = Sequential()
 	model = Sequential()
@@ -182,6 +205,9 @@ def downSample(wv,percent,length):
 				ff = 1
 	return(wv)
 
+# def sampleData():
+
+
 def loadModel(jsonfn,h5fn):
 	# load json and create model
 	json_file = open(jsonfn, 'r')
@@ -196,24 +222,26 @@ def loadModel(jsonfn,h5fn):
 if __name__ == "__main__":
 	
 	# Parameters
-	audioPathWrite = getcwd()+"/liteSpdRKT.wav"
+	# audioPathWrite = getcwd()+"/liteSpdRKT.wav"
+	audioPathWrite = getcwd()+"/grounded.wav"
 	# audioPath = getcwd()+"/un1.wav"
 	# audioPath = getcwd()+"/keyRaw.wav"
 	audioPath = getcwd()+"/grounded.wav"
 	# length of prediction info
-	bufferSize = 100
+	bufferSize = 441
 	# length of prediction label
 	predictionSize = 1
 	# Train new model
 	# newModel = False
-	# equivalent to duty == 1
 	newModel = True
+	# equivalent to duty == 1	
 	fullReplacement = True
 	# min, 1 : max inf : effective sample rate
 	duty = 1
 	# prediction mix vs signal mix
 	mix = .8
-
+	# function enable
+	fxEN = True
 
 	# yo = rampGen()
 	wv,rate = loadWav(audioPath)
@@ -221,9 +249,12 @@ if __name__ == "__main__":
 	print("Audio Loaded")
 
 	# wv = wv[1100000:1200000]
-	# wv = wv[:100000]
+	wv = wv[:100000]
+	# writeWV = writeWV[:100000]
 	# wv = wv[50000:80000]
-	wv = wv[:]
+	wv = downSample(wv,.5,44100*1)
+	writeWV = downSample(writeWV,.5,44100*10)
+	writeWV = writeWV[writeWV != 1]
 	print("Parsing into non-clipped data")
 	parsedClips = clippingParser(wv)
 	print("Parsing Complete")
@@ -256,13 +287,13 @@ if __name__ == "__main__":
 		model = trainModel(X_train,y_train)
 		saveModel(model)
 	else:
-		model = loadModel("cmodel3.json","cweights3.h5")
+		model = loadModel("cmodel4.json","cweights4.h5")
 	
 	# for i in range(100):
 	# preds = model.predict(X_train)
-	pwv = generatePredictions(model,wv,bufferSize,predictionSize,fullReplacement,duty,mix)
+	pwv = generatePredictions(model,writeWV,bufferSize,predictionSize,fullReplacement,duty,mix,fxEN)
 
-	writeWav(writeWV,writeRate,'testOut'+strftime("%Y%m%d-%H%M%S")+'.wav')
+	writeWav(pwv,writeRate,'testOut'+strftime("%Y%m%d-%H%M%S")+'.wav')
 
 
 	# preds *= drcmax
